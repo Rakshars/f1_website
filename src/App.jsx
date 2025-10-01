@@ -160,8 +160,11 @@ export default function App() {
         position: 'relative',
         width: '100%',
         height: '100%',
-        background: '#001D46',
-        overflow: 'hidden'
+        background: currentTeam === 'ferrari' ? '#DC0000' : 
+                    currentTeam === 'mclaren' ? '#FF8700' : 
+                    currentTeam === 'mercedes' ? '#00D2BE' : '#001D46',
+        overflow: 'hidden',
+        transition: 'background 0.5s ease'
       }}>
         {/* Team Selection Buttons */}
         <div style={{
@@ -216,7 +219,11 @@ export default function App() {
         </div>
 
         <Canvas camera={{ position: [0, 1.4, 6], fov: 50 }}>
-          <color attach="background" args={["#001D46"]} />
+          <color attach="background" args={[
+            currentTeam === 'ferrari' ? '#DC0000' : 
+            currentTeam === 'mclaren' ? '#FF8700' : 
+            currentTeam === 'mercedes' ? '#00D2BE' : '#001D46'
+          ]} />
           
           {/* Much brighter ambient light */}
           <ambientLight intensity={1.5} />
