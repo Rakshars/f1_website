@@ -3,15 +3,48 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { useGLTF, OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 
-// List of all your car models
-const CAR_MODELS = [
-  { name: "RB6", path: "/models/rb6.glb" },
-  { name: "RB7", path: "/models/rb7.glb" },
-  { name: "RB9", path: "/models/rb9.glb" },
-  { name: "RB16", path: "/models/rb16.glb" },
-  { name: "RB19", path: "/models/rb19.glb" },
-  { name: "RB20", path: "/models/rb20.glb" }
-];
+// All car models organized by team
+const TEAMS = {
+  redbull: {
+    name: "Red Bull Racing",
+    color: "#0600EF",
+    cars: [
+      { name: "RB6", path: "/models/redbull/rb6.glb", year: "2010" },
+      { name: "RB7", path: "/models/redbull/rb7.glb", year: "2011" },
+      { name: "RB9", path: "/models/redbull/rb9.glb", year: "2013" },
+      { name: "RB16", path: "/models/redbull/rb16.glb", year: "2020" },
+      { name: "RB19", path: "/models/redbull/rb19.glb", year: "2023" },
+      { name: "RB20", path: "/models/redbull/rb20.glb", year: "2024" }
+    ]
+  },
+  ferrari: {
+    name: "Scuderia Ferrari",
+    color: "#DC0000",
+    cars: [
+      { name: "F1-75", path: "/models/ferrari/f1-75.glb", year: "2022" },
+      { name: "SF23", path: "/models/ferrari/sf23.glb", year: "2023" }
+    ]
+  },
+  mclaren: {
+    name: "McLaren F1 Team",
+    color: "#FF8700",
+    cars: [
+      { name: "MCL35M", path: "/models/mclaren/mcl35m.glb", year: "2021" },
+      { name: "MCL36", path: "/models/mclaren/mcl36.glb", year: "2022" },
+      { name: "MCL60", path: "/models/mclaren/mcl60.glb", year: "2023" },
+      { name: "MP4", path: "/models/mclaren/mp4.glb", year: "2008" }
+    ]
+  },
+  mercedes: {
+    name: "Mercedes-AMG Petronas",
+    color: "#00D2BE",
+    cars: [
+      { name: "W11", path: "/models/mercedes/w11.glb", year: "2020" },
+      { name: "W13", path: "/models/mercedes/w13.glb", year: "2022" },
+      { name: "W14", path: "/models/mercedes/w14.glb", year: "2023" }
+    ]
+  }
+};
 
 function LoaderFallback() {
   return (
@@ -33,12 +66,10 @@ function CameraController({ modelSize }) {
   
   useEffect(() => {
     if (modelSize) {
-      // Calculate optimal distance - very close zoom to fill screen
       const fov = camera.fov * (Math.PI / 180);
-      const distance = Math.abs(modelSize / Math.sin(fov / 2)) * 0.38; // Reduced from 0.45 to 0.38 for even more zoom
+      const distance = Math.abs(modelSize / Math.sin(fov / 2)) * 0.38;
       
-      // Position camera at a diagonal angle (front-side view)
-      const angle = Math.PI / 4; // 45 degrees
+      const angle = Math.PI / 4;
       const x = distance * Math.sin(angle);
       const z = distance * Math.cos(angle);
       const y = modelSize * 0.35;
@@ -46,8 +77,7 @@ function CameraController({ modelSize }) {
       camera.position.set(x, y, z);
       camera.lookAt(0, 0, 0);
       
-      // Adjust near and far planes to prevent clipping - more conservative values
-      camera.near = distance * 0.01; // Dynamic near plane based on distance
+      camera.near = distance * 0.01;
       camera.far = distance * 5;
       camera.updateProjectionMatrix();
     }
@@ -65,13 +95,14 @@ function ModelWrapper({ modelPath, onSizeCalculated }) {
       const center = bbox.getCenter(new THREE.Vector3());
       const size = bbox.getSize(new THREE.Vector3());
       
-      // Get the maximum dimension with padding for proper scaling
-      const maxDim = Math.max(size.x, size.y, size.z) * 1.2; // Added 20% padding
+      const maxDim = Math.max(size.x, size.y, size.z) * 1.2;
       
       // Center the model
       scene.position.sub(center);
       
-      // Notify parent of the size
+      // Reset all rotations to ensure cars face the same direction as Red Bulls
+      scene.rotation.set(0, 0, 0);
+      
       onSizeCalculated(maxDim);
     }
   }, [scene, onSizeCalculated]);
@@ -84,18 +115,28 @@ function CarModel({ modelPath, onSizeCalculated }) {
 }
 
 export default function App() {
-  const [currentIndex, setCurrentIndex] = useState(4); // Start with RB19 (index 4)
+  const [currentTeam, setCurrentTeam] = useState('redbull');
+  const [currentCarIndex, setCurrentCarIndex] = useState(0);
   const [modelSize, setModelSize] = useState(null);
   const controlsRef = useRef();
 
+  const currentCars = TEAMS[currentTeam].cars;
+  const currentCar = currentCars[currentCarIndex];
+
+  const handleTeamChange = (teamKey) => {
+    setCurrentTeam(teamKey);
+    setCurrentCarIndex(0);
+    setModelSize(null);
+  };
+
   const handlePrevious = () => {
-    setCurrentIndex((prev) => (prev === 0 ? CAR_MODELS.length - 1 : prev - 1));
-    setModelSize(null); // Reset size for new model
+    setCurrentCarIndex((prev) => (prev === 0 ? currentCars.length - 1 : prev - 1));
+    setModelSize(null);
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev === CAR_MODELS.length - 1 ? 0 : prev + 1));
-    setModelSize(null); // Reset size for new model
+    setCurrentCarIndex((prev) => (prev === currentCars.length - 1 ? 0 : prev + 1));
+    setModelSize(null);
   };
 
   const handleSizeCalculated = (size) => {
@@ -119,21 +160,86 @@ export default function App() {
         position: 'relative',
         width: '100%',
         height: '100%',
-        background: '#ffffff',
+        background: '#001D46',
         overflow: 'hidden'
       }}>
+        {/* Team Selection Buttons */}
+        <div style={{
+          position: 'absolute',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: '12px',
+          zIndex: 20,
+          background: 'rgba(0, 0, 0, 0.5)',
+          padding: '12px',
+          borderRadius: '30px',
+          backdropFilter: 'blur(10px)'
+        }}>
+          {Object.entries(TEAMS).map(([key, team]) => (
+            <button
+              key={key}
+              onClick={() => handleTeamChange(key)}
+              style={{
+                background: currentTeam === key ? team.color : 'rgba(255, 255, 255, 0.2)',
+                border: currentTeam === key ? `2px solid ${team.color}` : '2px solid transparent',
+                borderRadius: '20px',
+                padding: '10px 20px',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                boxShadow: currentTeam === key ? `0 0 20px ${team.color}50` : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (currentTeam !== key) {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.3)';
+                  e.target.style.transform = 'scale(1.05)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (currentTeam !== key) {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+                  e.target.style.transform = 'scale(1)';
+                }
+              }}
+            >
+              {key === 'redbull' ? 'Red Bull' : 
+               key === 'ferrari' ? 'Ferrari' : 
+               key === 'mclaren' ? 'McLaren' : 'Mercedes'}
+            </button>
+          ))}
+        </div>
+
         <Canvas camera={{ position: [0, 1.4, 6], fov: 50 }}>
-          <color attach="background" args={["#ffffff"]} />
-          <ambientLight intensity={0.7} />
-          <directionalLight position={[10, 10, 10]} intensity={1.0} />
-          <pointLight position={[-10, -10, -10]} intensity={0.5} />
+          <color attach="background" args={["#001D46"]} />
+          
+          {/* Much brighter ambient light */}
+          <ambientLight intensity={1.5} />
+          
+          {/* Multiple directional lights from different angles */}
+          <directionalLight position={[10, 10, 10]} intensity={1.5} castShadow />
+          <directionalLight position={[-10, 10, -10]} intensity={1.2} />
+          <directionalLight position={[0, 10, -10]} intensity={1.0} />
+          
+          {/* Point lights for fill */}
+          <pointLight position={[5, 5, 5]} intensity={1.0} />
+          <pointLight position={[-5, 5, -5]} intensity={1.0} />
+          <pointLight position={[0, -5, 0]} intensity={0.8} />
+          
+          {/* Hemisphere light for overall illumination */}
+          <hemisphereLight args={['#ffffff', '#444444', 1.0]} />
 
           <CameraController modelSize={modelSize} />
 
           <Suspense fallback={<LoaderFallback />}>
             <CarModel 
-              key={currentIndex} 
-              modelPath={CAR_MODELS[currentIndex].path}
+              key={`${currentTeam}-${currentCarIndex}`}
+              modelPath={currentCar.path}
               onSizeCalculated={handleSizeCalculated}
             />
           </Suspense>
@@ -217,18 +323,42 @@ export default function App() {
         {/* Model Name Display */}
         <div style={{
           position: 'absolute',
-          top: '20px',
+          bottom: '40px',
           left: '50%',
           transform: 'translateX(-50%)',
-          background: 'rgba(0, 0, 0, 0.7)',
+          background: `linear-gradient(135deg, ${TEAMS[currentTeam].color}ee, ${TEAMS[currentTeam].color}99)`,
           color: 'white',
-          padding: '10px 20px',
-          borderRadius: '20px',
-          fontSize: '18px',
+          padding: '16px 40px',
+          borderRadius: '25px',
+          fontSize: '28px',
           fontWeight: 'bold',
+          zIndex: 10,
+          textAlign: 'center',
+          boxShadow: `0 8px 32px ${TEAMS[currentTeam].color}40`,
+          border: `2px solid ${TEAMS[currentTeam].color}`
+        }}>
+          <div style={{ fontSize: '14px', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>
+            {TEAMS[currentTeam].name}
+          </div>
+          <div>{currentCar.name}</div>
+          <div style={{ fontSize: '16px', marginTop: '4px', opacity: 0.9 }}>
+            {currentCar.year}
+          </div>
+        </div>
+
+        {/* Car Counter */}
+        <div style={{
+          position: 'absolute',
+          bottom: '40px',
+          right: '40px',
+          background: 'rgba(0, 0, 0, 0.6)',
+          color: 'white',
+          padding: '10px 16px',
+          borderRadius: '15px',
+          fontSize: '14px',
           zIndex: 10
         }}>
-          {CAR_MODELS[currentIndex].name}
+          {currentCarIndex + 1} / {currentCars.length}
         </div>
       </div>
     </div>
@@ -236,4 +366,6 @@ export default function App() {
 }
 
 // Preload all models
-CAR_MODELS.forEach(car => useGLTF.preload(car.path));
+Object.values(TEAMS).forEach(team => {
+  team.cars.forEach(car => useGLTF.preload(car.path));
+});
