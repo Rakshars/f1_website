@@ -831,7 +831,7 @@ export default function App() {
           bottom: '40px',
           left: '50%',
           transform: 'translateX(-50%)',
-          background: `linear-gradient(135deg, ${TEAMS[currentTeam].color}ee, ${TEAMS[currentTeam].color}99)`,
+          background: `linear-gradient(135deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.7))`,
           color: 'white',
           padding: '16px 40px',
           borderRadius: '25px',
