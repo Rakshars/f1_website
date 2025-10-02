@@ -443,6 +443,9 @@ export default function App() {
   const [loadingTrack, setLoadingTrack] = useState(false);
   const [trackError, setTrackError] = useState(null);
   const controlsRef = useRef();
+  const [driverStandings, setDriverStandings] = useState(null);
+  const [constructorStandings, setConstructorStandings] = useState(null);
+  const [loadingStandings, setLoadingStandings] = useState(false);
 
   const currentCars = TEAMS[currentTeam].cars;
   const currentCar = currentCars[currentCarIndex];
@@ -585,6 +588,36 @@ export default function App() {
     }
   };
 
+  const fetchChampionshipStandings = async (year) => {
+    if (!year) return;
+    
+    setLoadingStandings(true);
+    
+    try {
+      // Fetch driver standings
+      const driversResponse = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/driverStandings.json`);
+      if (driversResponse.ok) {
+        const driversData = await driversResponse.json();
+        if (driversData?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings) {
+          setDriverStandings(driversData.MRData.StandingsTable.StandingsLists[0].DriverStandings);
+        }
+      }
+      
+      // Fetch constructor standings
+      const constructorsResponse = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/constructorStandings.json`);
+      if (constructorsResponse.ok) {
+        const constructorsData = await constructorsResponse.json();
+        if (constructorsData?.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings) {
+          setConstructorStandings(constructorsData.MRData.StandingsTable.StandingsLists[0].ConstructorStandings);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching championship standings:', error);
+    } finally {
+      setLoadingStandings(false);
+    }
+  };
+
   const handleTrackChange = (e) => {
     const trackId = e.target.value;
     setSelectedTrack(trackId);
@@ -601,7 +634,14 @@ export default function App() {
     if (selectedTrack && year) {
       fetchTrackData(selectedTrack, year);
     }
+    // Fetch championship standings for the selected year
+    fetchChampionshipStandings(year);
   };
+
+  useEffect(() => {
+  // Load standings for initial year on mount
+  fetchChampionshipStandings(selectedYear);
+}, []);
 
   return (
     <div style={{ 
@@ -1089,53 +1129,6 @@ export default function App() {
             </select>
           </div>
 
-          {/* Loading State */}
-          {loadingTrack && (
-            <div style={{
-              textAlign: 'center',
-              color: 'white',
-              fontSize: '18px',
-              padding: '40px'
-            }}>
-              <div style={{
-                display: 'inline-block',
-                width: '40px',
-                height: '40px',
-                border: '4px solid rgba(255, 255, 255, 0.1)',
-                borderTop: '4px solid white',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
-              <p style={{ marginTop: '20px' }}>Loading circuit data...</p>
-              <style>
-                {`
-                  @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                  }
-                `}
-              </style>
-            </div>
-          )}
-
-          {/* Error State */}
-          {trackError && (
-            <div style={{
-              background: 'rgba(220, 0, 0, 0.2)',
-              border: '2px solid rgba(220, 0, 0, 0.5)',
-              borderRadius: '15px',
-              padding: '30px',
-              color: '#ff6666',
-              fontSize: '16px',
-              maxWidth: '700px',
-              margin: '0 auto',
-              lineHeight: '1.6',
-              whiteSpace: 'pre-line'
-            }}>
-              {trackError}
-            </div>
-          )}
-
           {/* Track Data Display */}
           {trackData && !loadingTrack && (
             <div style={{
@@ -1364,6 +1357,235 @@ export default function App() {
               )}
             </div>
           )}
+
+          {/* Championship Standings Tables */}
+          <div style={{
+            marginTop: '100px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))',
+            gap: '40px'
+          }}>
+            {/* Driver Standings */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(10px)',
+              border: '2px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '25px',
+              padding: '30px',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+            }}>
+              <h3 style={{
+                color: 'white',
+                fontSize: '28px',
+                fontWeight: 'bold',
+                marginBottom: '25px',
+                textAlign: 'center',
+                textTransform: 'uppercase',
+                letterSpacing: '2px'
+              }}>
+                {selectedYear} Driver Standings
+              </h3>
+              
+              {loadingStandings ? (
+                <div style={{ textAlign: 'center', color: '#999', padding: '20px' }}>
+                  Loading standings...
+                </div>
+              ) : driverStandings ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '14px'
+                  }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid rgba(255, 255, 255, 0.2)' }}>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'left', textTransform: 'uppercase', fontSize: '12px' }}>Pos</th>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'left', textTransform: 'uppercase', fontSize: '12px' }}>Driver</th>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'left', textTransform: 'uppercase', fontSize: '12px' }}>Team</th>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'center', textTransform: 'uppercase', fontSize: '12px' }}>Points</th>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'center', textTransform: 'uppercase', fontSize: '12px' }}>Wins</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {driverStandings.map((driver, index) => (
+                        <tr key={index} style={{
+                          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                          transition: 'background 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <td style={{
+                            padding: '16px 8px',
+                            color: index < 3 ? '#FFD700' : 'white',
+                            fontWeight: 'bold',
+                            fontSize: '16px'
+                          }}>
+                            {driver.position}
+                          </td>
+                          <td style={{ padding: '16px 8px', color: 'white', fontWeight: 'bold' }}>
+                            {driver.Driver.givenName} {driver.Driver.familyName}
+                          </td>
+                          <td style={{ padding: '16px 8px', color: '#999' }}>
+                            {driver.Constructors[0].name}
+                          </td>
+                          <td style={{
+                            padding: '16px 8px',
+                            color: 'white',
+                            textAlign: 'center',
+                            fontWeight: 'bold',
+                            fontSize: '16px'
+                          }}>
+                            {driver.points}
+                          </td>
+                          <td style={{ padding: '16px 8px', color: '#999', textAlign: 'center' }}>
+                            {driver.wins}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+                  No driver standings available
+                </div>
+              )}
+            </div>
+
+            {/* Constructor Standings */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(10px)',
+              border: '2px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '25px',
+              padding: '30px',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+            }}>
+              <h3 style={{
+                color: 'white',
+                fontSize: '28px',
+                fontWeight: 'bold',
+                marginBottom: '25px',
+                textAlign: 'center',
+                textTransform: 'uppercase',
+                letterSpacing: '2px'
+              }}>
+                {selectedYear} Constructor Standings
+              </h3>
+              
+              {loadingStandings ? (
+                <div style={{ textAlign: 'center', color: '#999', padding: '20px' }}>
+                  Loading standings...
+                </div>
+              ) : constructorStandings ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '14px'
+                  }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid rgba(255, 255, 255, 0.2)' }}>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'left', textTransform: 'uppercase', fontSize: '12px' }}>Pos</th>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'left', textTransform: 'uppercase', fontSize: '12px' }}>Team</th>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'center', textTransform: 'uppercase', fontSize: '12px' }}>Points</th>
+                        <th style={{ padding: '12px 8px', color: '#999', textAlign: 'center', textTransform: 'uppercase', fontSize: '12px' }}>Wins</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {constructorStandings.map((constructor, index) => (
+                        <tr key={index} style={{
+                          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                          transition: 'background 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <td style={{
+                            padding: '16px 8px',
+                            color: index < 3 ? '#FFD700' : 'white',
+                            fontWeight: 'bold',
+                            fontSize: '16px'
+                          }}>
+                            {constructor.position}
+                          </td>
+                          <td style={{ padding: '16px 8px', color: 'white', fontWeight: 'bold' }}>
+                            {constructor.Constructor.name}
+                          </td>
+                          <td style={{
+                            padding: '16px 8px',
+                            color: 'white',
+                            textAlign: 'center',
+                            fontWeight: 'bold',
+                            fontSize: '16px'
+                          }}>
+                            {constructor.points}
+                          </td>
+                          <td style={{ padding: '16px 8px', color: '#999', textAlign: 'center' }}>
+                            {constructor.wins}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+                  No constructor standings available
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Loading State */}
+          {loadingTrack && (
+            <div style={{
+              textAlign: 'center',
+              color: 'white',
+              fontSize: '18px',
+              padding: '40px'
+            }}>
+              <div style={{
+                display: 'inline-block',
+                width: '40px',
+                height: '40px',
+                border: '4px solid rgba(255, 255, 255, 0.1)',
+                borderTop: '4px solid white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <p style={{ marginTop: '20px' }}>Loading circuit data...</p>
+              <style>
+                {`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}
+              </style>
+            </div>
+          )}
+
+          {/* Error State */}
+          {trackError && (
+            <div style={{
+              background: 'rgba(220, 0, 0, 0.2)',
+              border: '2px solid rgba(220, 0, 0, 0.5)',
+              borderRadius: '15px',
+              padding: '30px',
+              color: '#ff6666',
+              fontSize: '16px',
+              maxWidth: '700px',
+              margin: '0 auto',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-line'
+            }}>
+              {trackError}
+            </div>
+          )}
+
+          
 
           {/* Info Text */}
           {!selectedTrack && !loadingTrack && (
