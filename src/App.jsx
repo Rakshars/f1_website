@@ -1360,6 +1360,70 @@ export default function App() {
             </div>
           )}
 
+          {/* Loading State */}
+          {loadingTrack && (
+            <div style={{
+              textAlign: 'center',
+              color: 'white',
+              fontSize: '18px',
+              padding: '40px'
+            }}>
+              <div style={{
+                display: 'inline-block',
+                width: '40px',
+                height: '40px',
+                border: '4px solid rgba(255, 255, 255, 0.1)',
+                borderTop: '4px solid white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <p style={{ marginTop: '20px' }}>Loading circuit data...</p>
+              <style>
+                {`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}
+              </style>
+            </div>
+          )}
+
+          {/* Error State */}
+            {trackError && (
+              <div style={{
+                background: 'rgba(220, 0, 0, 0.2)',
+                border: '2px solid rgba(220, 0, 0, 0.5)',
+                borderRadius: '15px',
+                padding: '30px',
+                color: '#ff6666',
+                fontSize: '16px',
+                maxWidth: '700px',
+                margin: '40px auto 0 auto',  // CHANGED THIS LINE
+                lineHeight: '1.6',
+                whiteSpace: 'pre-line'
+              }}>
+              {trackError}
+            </div>
+          )}
+
+          
+
+          {/* Info Text */}
+          {!selectedTrack && !loadingTrack && (
+            <div style={{
+              textAlign: 'center',
+              color: '#666',
+              fontSize: '16px',
+              marginTop: '40px'
+            }}>
+              <p>Select a circuit from the dropdown above to view detailed information</p>
+              <p style={{ marginTop: '10px', fontSize: '14px' }}>
+                Data provided by Jolpica F1 API
+              </p>
+            </div>
+          )}
+
           {/* Championship Standings Tables */}
           <div style={{
             marginTop: '100px',
@@ -1539,70 +1603,6 @@ export default function App() {
               )}
             </div>
           </div>
-
-          {/* Loading State */}
-          {loadingTrack && (
-            <div style={{
-              textAlign: 'center',
-              color: 'white',
-              fontSize: '18px',
-              padding: '40px'
-            }}>
-              <div style={{
-                display: 'inline-block',
-                width: '40px',
-                height: '40px',
-                border: '4px solid rgba(255, 255, 255, 0.1)',
-                borderTop: '4px solid white',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
-              <p style={{ marginTop: '20px' }}>Loading circuit data...</p>
-              <style>
-                {`
-                  @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                  }
-                `}
-              </style>
-            </div>
-          )}
-
-          {/* Error State */}
-          {trackError && (
-            <div style={{
-              background: 'rgba(220, 0, 0, 0.2)',
-              border: '2px solid rgba(220, 0, 0, 0.5)',
-              borderRadius: '15px',
-              padding: '30px',
-              color: '#ff6666',
-              fontSize: '16px',
-              maxWidth: '700px',
-              margin: '0 auto',
-              lineHeight: '1.6',
-              whiteSpace: 'pre-line'
-            }}>
-              {trackError}
-            </div>
-          )}
-
-          
-
-          {/* Info Text */}
-          {!selectedTrack && !loadingTrack && (
-            <div style={{
-              textAlign: 'center',
-              color: '#666',
-              fontSize: '16px',
-              marginTop: '40px'
-            }}>
-              <p>Select a circuit from the dropdown above to view detailed information</p>
-              <p style={{ marginTop: '10px', fontSize: '14px' }}>
-                Data provided by Jolpica F1 API
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>
