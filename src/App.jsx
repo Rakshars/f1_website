@@ -650,7 +650,8 @@ export default function App() {
       width: '100%',
       minHeight: '100vh',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial',
-      boxSizing: 'border-box'
+      boxSizing: 'border-box',
+      overflowX: 'hidden'
     }}>
       {/* 3D Viewer Section - Full Screen */}
       <div style={{
@@ -1026,7 +1027,8 @@ export default function App() {
         background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%)',
         padding: '60px 20px',
         minHeight: '100vh',
-        width: '100vw'
+        width: '100vw',
+        overflowX: 'hidden'
       }}>
         <div style={{
           maxWidth: '1200px',
