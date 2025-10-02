@@ -367,7 +367,6 @@ function ModelWrapper({ modelPath, onSizeCalculated }) {
   
   useEffect(() => {
     if (scene) {
-      // Clone the scene to avoid modifying the cached version
       const clonedScene = scene.clone(true);
       
       const bbox = new THREE.Box3().setFromObject(clonedScene);
@@ -376,21 +375,29 @@ function ModelWrapper({ modelPath, onSizeCalculated }) {
       
       const maxDim = Math.max(size.x, size.y, size.z) * 1.2;
       
-      // Center the model within the group
       clonedScene.position.sub(center);
       clonedScene.rotation.set(0, 0, 0);
       
-      // Preserve original materials and colors
       clonedScene.traverse((child) => {
         if (child.isMesh) {
-          // Ensure materials are not affected by lighting too much
           if (child.material) {
-            child.material.needsUpdate = true;
+            if (Array.isArray(child.material)) {
+              child.material.forEach(mat => {
+                mat.needsUpdate = true;
+                mat.metalness = mat.metalness || 0.3;
+                mat.roughness = mat.roughness || 0.7;
+              });
+            } else {
+              child.material.needsUpdate = true;
+              child.material.metalness = child.material.metalness || 0.3;
+              child.material.roughness = child.material.roughness || 0.7;
+            }
+            child.castShadow = true;
+            child.receiveShadow = true;
           }
         }
       });
       
-      // Clear the group and add the cloned scene
       if (groupRef.current) {
         groupRef.current.clear();
         groupRef.current.add(clonedScene);
@@ -400,7 +407,6 @@ function ModelWrapper({ modelPath, onSizeCalculated }) {
     }
   }, [scene, onSizeCalculated]);
   
-  // Gentle rotation animation on the group, not the model
   useEffect(() => {
     let animationId;
     const animate = () => {
@@ -431,10 +437,45 @@ export default function App() {
   const [currentCarIndex, setCurrentCarIndex] = useState(0);
   const [modelSize, setModelSize] = useState(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState('');
+  const [selectedYear, setSelectedYear] = useState('2024');
+  const [trackData, setTrackData] = useState(null);
+  const [loadingTrack, setLoadingTrack] = useState(false);
+  const [trackError, setTrackError] = useState(null);
   const controlsRef = useRef();
 
   const currentCars = TEAMS[currentTeam].cars;
   const currentCar = currentCars[currentCarIndex];
+
+  // Available years for F1 data
+  const years = ['2024', '2023', '2022', '2021', '2020', '2019', '2018', '2017', '2016', '2015'];
+
+  // F1 tracks with Jolpica API meeting IDs
+  const tracks = [
+    { id: '1246', name: 'Bahrain International Circuit' },
+    { id: '1247', name: 'Jeddah Corniche Circuit' },
+    { id: '1248', name: 'Albert Park Circuit' },
+    { id: '1249', name: 'Suzuka International Racing Course' },
+    { id: '1250', name: 'Shanghai International Circuit' },
+    { id: '1251', name: 'Miami International Autodrome' },
+    { id: '1252', name: 'Autodromo Enzo e Dino Ferrari' },
+    { id: '1253', name: 'Circuit de Monaco' },
+    { id: '1208', name: 'Circuit Gilles Villeneuve' },
+    { id: '1254', name: 'Red Bull Ring' },
+    { id: '1255', name: 'Silverstone Circuit' },
+    { id: '1256', name: 'Hungaroring' },
+    { id: '1257', name: 'Circuit de Spa-Francorchamps' },
+    { id: '1258', name: 'Circuit Zandvoort' },
+    { id: '1259', name: 'Autodromo Nazionale di Monza' },
+    { id: '1260', name: 'Baku City Circuit' },
+    { id: '1261', name: 'Marina Bay Street Circuit' },
+    { id: '1262', name: 'Circuit of the Americas' },
+    { id: '1263', name: 'Autódromo Hermanos Rodríguez' },
+    { id: '1264', name: 'Autódromo José Carlos Pace' },
+    { id: '1265', name: 'Las Vegas Strip Circuit' },
+    { id: '1266', name: 'Losail International Circuit' },
+    { id: '1267', name: 'Yas Marina Circuit' }
+  ];
 
   const handleTeamChange = (teamKey) => {
     setCurrentTeam(teamKey);
@@ -459,28 +500,132 @@ export default function App() {
     setModelSize(size);
   };
 
+  const fetchTrackData = async (meetingId, year) => {
+    if (!meetingId || !year) return;
+    
+    setLoadingTrack(true);
+    setTrackError(null);
+    
+    try {
+      const apiUrl = `https://api.jolpi.ca/ergast/f1/${year}/circuits.json`;
+      
+      const response = await fetch(apiUrl);
+      if (!response.ok) {
+        throw new Error('Unable to fetch data');
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.MRData && data.MRData.CircuitTable && data.MRData.CircuitTable.Circuits) {
+        const circuits = data.MRData.CircuitTable.Circuits;
+        
+        // Try to find race results for this circuit
+        const resultsUrl = `https://api.jolpi.ca/ergast/f1/${year}/results.json?limit=1000`;
+        const resultsResponse = await fetch(resultsUrl);
+        
+        if (resultsResponse.ok) {
+          const resultsData = await resultsResponse.json();
+          
+          if (resultsData && resultsData.MRData && resultsData.MRData.RaceTable && resultsData.MRData.RaceTable.Races) {
+            const races = resultsData.MRData.RaceTable.Races;
+            
+            // Find matching race by circuit name
+            const trackInfo = tracks.find(t => t.id === meetingId);
+            const matchingRace = races.find(race => 
+              race.Circuit.circuitName.toLowerCase().includes(trackInfo.name.toLowerCase().split(' ')[0]) ||
+              trackInfo.name.toLowerCase().includes(race.Circuit.circuitName.toLowerCase().split(' ')[0])
+            );
+            
+            if (matchingRace) {
+              const circuit = matchingRace.Circuit;
+              const winner = matchingRace.Results && matchingRace.Results[0];
+              
+              setTrackData({
+                name: circuit.circuitName,
+                location: `${circuit.Location.locality}, ${circuit.Location.country}`,
+                coordinates: `${circuit.Location.lat}, ${circuit.Location.long}`,
+                raceName: matchingRace.raceName,
+                raceDate: matchingRace.date,
+                round: matchingRace.round,
+                season: matchingRace.season,
+                winner: winner ? {
+                  name: `${winner.Driver.givenName} ${winner.Driver.familyName}`,
+                  team: winner.Constructor.name,
+                  time: winner.Time?.time || 'N/A',
+                  grid: winner.grid,
+                  points: winner.points
+                } : null
+              });
+              return;
+            }
+          }
+        }
+        
+        // Fallback if no race found
+        const trackInfo = tracks.find(t => t.id === meetingId);
+        setTrackError(`No race data found for ${trackInfo?.name || 'this circuit'} in ${year}. This track may not have been on the F1 calendar that year.`);
+      } else {
+        throw new Error('Invalid API response');
+      }
+    } catch (error) {
+      console.error('Error fetching track data:', error);
+      
+      const trackInfo = tracks.find(t => t.id === meetingId);
+      setTrackError(
+        `Unable to load race data from the Jolpica F1 API. This could be due to:\n\n` +
+        `• API service being temporarily unavailable\n` +
+        `• No race at ${trackInfo?.name || 'this circuit'} in ${year}\n` +
+        `• Network connectivity issues\n\n` +
+        `Try selecting a different year or circuit.`
+      );
+      
+      setTrackData(null);
+    } finally {
+      setLoadingTrack(false);
+    }
+  };
+
+  const handleTrackChange = (e) => {
+    const trackId = e.target.value;
+    setSelectedTrack(trackId);
+    if (trackId && selectedYear) {
+      fetchTrackData(trackId, selectedYear);
+    } else {
+      setTrackData(null);
+    }
+  };
+
+  const handleYearChange = (e) => {
+    const year = e.target.value;
+    setSelectedYear(year);
+    if (selectedTrack && year) {
+      fetchTrackData(selectedTrack, year);
+    }
+  };
+
   return (
     <div style={{ 
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
       margin: 0, 
       padding: 0, 
-      width: '100vw',
-      height: '100vh',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial' 
+      width: '100%',
+      minHeight: '100vh',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial',
+      boxSizing: 'border-box'
     }}>
+      {/* 3D Viewer Section - Full Screen */}
       <div style={{
         position: 'relative',
-        width: '100%',
-        height: '100%',
+        width: '100vw',
+        height: '100vh',
         background: currentTeam === 'ferrari' ? '#DC0000' : 
                     currentTeam === 'mclaren' ? '#FF8700' : 
                     currentTeam === 'mercedes' ? '#00D2BE' : '#001D46',
         overflow: 'hidden',
-        transition: 'background 0.5s ease'
+        transition: 'background 0.5s ease',
+        margin: 0,
+        padding: 0,
+        left: 0,
+        right: 0
       }}>
         {/* Team Selection Buttons */}
         <div style={{
@@ -535,27 +680,20 @@ export default function App() {
           ))}
         </div>
 
-        <Canvas camera={{ position: [0, 1.4, 6], fov: 50 }}>
+        <Canvas camera={{ position: [0, 1.4, 6], fov: 50 }} style={{ width: '100%', height: '100%' }}>
           <color attach="background" args={[
             currentTeam === 'ferrari' ? '#DC0000' : 
             currentTeam === 'mclaren' ? '#FF8700' : 
             currentTeam === 'mercedes' ? '#00D2BE' : '#001D46'
           ]} />
           
-          {/* Much brighter ambient light */}
           <ambientLight intensity={1.5} />
-          
-          {/* Multiple directional lights from different angles */}
           <directionalLight position={[10, 10, 10]} intensity={1.5} castShadow />
           <directionalLight position={[-10, 10, -10]} intensity={1.2} />
           <directionalLight position={[0, 10, -10]} intensity={1.0} />
-          
-          {/* Point lights for fill */}
           <pointLight position={[5, 5, 5]} intensity={1.0} />
           <pointLight position={[-5, 5, -5]} intensity={1.0} />
           <pointLight position={[0, -5, 0]} intensity={0.8} />
-          
-          {/* Hemisphere light for overall illumination */}
           <hemisphereLight args={['#ffffff', '#444444', 1.0]} />
 
           <CameraController modelSize={modelSize} />
@@ -683,7 +821,7 @@ export default function App() {
           borderRadius: '15px',
           fontSize: '14px',
           zIndex: 10
-        }}>
+          }}>
           {currentCarIndex + 1} / {currentCars.length}
         </div>
 
@@ -742,7 +880,9 @@ export default function App() {
             fontSize: '14px',
             zIndex: 10,
             minWidth: '280px',
-            boxShadow: `0 8px 32px ${TEAMS[currentTeam].color}40`
+            boxShadow: `0 8px 32px ${TEAMS[currentTeam].color}40`,
+            maxHeight: '70vh',
+            overflowY: 'auto'
           }}>
             <div style={{
               fontSize: '18px',
@@ -775,7 +915,6 @@ export default function App() {
               </div>
             ))}
             
-            {/* Racing Statistics */}
             <div style={{
               fontSize: '18px',
               fontWeight: 'bold',
@@ -840,6 +979,407 @@ export default function App() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Track Data Section */}
+      <div style={{
+        background: 'linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%)',
+        padding: '60px 20px',
+        minHeight: '100vh',
+        width: '100vw'
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto'
+        }}>
+          <h2 style={{
+            color: 'white',
+            fontSize: '48px',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            marginBottom: '20px',
+            textTransform: 'uppercase',
+            letterSpacing: '2px'
+          }}>
+            F1 Circuit Data
+          </h2>
+          
+          <p style={{
+            color: '#999',
+            textAlign: 'center',
+            fontSize: '18px',
+            marginBottom: '50px'
+          }}>
+            Select a circuit to view detailed information
+          </p>
+
+          {/* Track and Year Selectors */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '20px',
+            marginBottom: '40px',
+            flexWrap: 'wrap'
+          }}>
+            <select
+              value={selectedYear}
+              onChange={handleYearChange}
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '2px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '15px',
+                padding: '15px 25px',
+                color: 'white',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                minWidth: '150px',
+                outline: 'none',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = 'rgba(255, 255, 255, 0.15)';
+                e.target.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+              }}
+            >
+              {years.map(year => (
+                <option key={year} value={year} style={{ background: '#1a1a1a', color: 'white' }}>
+                  {year} Season
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedTrack}
+              onChange={handleTrackChange}
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '2px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '15px',
+                padding: '15px 25px',
+                color: 'white',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                minWidth: '350px',
+                outline: 'none',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = 'rgba(255, 255, 255, 0.15)';
+                e.target.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+              }}
+            >
+              <option value="" style={{ background: '#1a1a1a', color: 'white' }}>
+                Select a Circuit
+              </option>
+              {tracks.map(track => (
+                <option key={track.id} value={track.id} style={{ background: '#1a1a1a', color: 'white' }}>
+                  {track.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Loading State */}
+          {loadingTrack && (
+            <div style={{
+              textAlign: 'center',
+              color: 'white',
+              fontSize: '18px',
+              padding: '40px'
+            }}>
+              <div style={{
+                display: 'inline-block',
+                width: '40px',
+                height: '40px',
+                border: '4px solid rgba(255, 255, 255, 0.1)',
+                borderTop: '4px solid white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <p style={{ marginTop: '20px' }}>Loading circuit data...</p>
+              <style>
+                {`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}
+              </style>
+            </div>
+          )}
+
+          {/* Error State */}
+          {trackError && (
+            <div style={{
+              background: 'rgba(220, 0, 0, 0.2)',
+              border: '2px solid rgba(220, 0, 0, 0.5)',
+              borderRadius: '15px',
+              padding: '30px',
+              color: '#ff6666',
+              fontSize: '16px',
+              maxWidth: '700px',
+              margin: '0 auto',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-line'
+            }}>
+              {trackError}
+            </div>
+          )}
+
+          {/* Track Data Display */}
+          {trackData && !loadingTrack && (
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(10px)',
+              border: '2px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '25px',
+              padding: '40px',
+              maxWidth: '800px',
+              margin: '0 auto',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+            }}>
+              <h3 style={{
+                color: 'white',
+                fontSize: '32px',
+                fontWeight: 'bold',
+                marginBottom: '10px',
+                textAlign: 'center'
+              }}>
+                {trackData.name}
+              </h3>
+              
+              <p style={{
+                color: '#999',
+                fontSize: '18px',
+                textAlign: 'center',
+                marginBottom: '40px'
+              }}>
+                {trackData.raceName} - Round {trackData.round}
+              </p>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '20px',
+                marginBottom: '30px'
+              }}>
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  padding: '20px',
+                  borderRadius: '15px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                  <div style={{
+                    color: '#999',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '8px'
+                  }}>
+                    Location
+                  </div>
+                  <div style={{
+                    color: 'white',
+                    fontSize: '18px',
+                    fontWeight: 'bold'
+                  }}>
+                    {trackData.location}
+                  </div>
+                </div>
+
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  padding: '20px',
+                  borderRadius: '15px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                  <div style={{
+                    color: '#999',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '8px'
+                  }}>
+                    Coordinates
+                  </div>
+                  <div style={{
+                    color: 'white',
+                    fontSize: '16px',
+                    fontWeight: 'bold'
+                  }}>
+                    {trackData.coordinates}
+                  </div>
+                </div>
+
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  padding: '20px',
+                  borderRadius: '15px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                  <div style={{
+                    color: '#999',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '8px'
+                  }}>
+                    Race Date
+                  </div>
+                  <div style={{
+                    color: 'white',
+                    fontSize: '18px',
+                    fontWeight: 'bold'
+                  }}>
+                    {new Date(trackData.raceDate).toLocaleDateString('en-US', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </div>
+                </div>
+
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  padding: '20px',
+                  borderRadius: '15px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                  <div style={{
+                    color: '#999',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '8px'
+                  }}>
+                    Season
+                  </div>
+                  <div style={{
+                    color: 'white',
+                    fontSize: '18px',
+                    fontWeight: 'bold'
+                  }}>
+                    {trackData.season}
+                  </div>
+                </div>
+              </div>
+
+              {trackData.winner && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 165, 0, 0.1))',
+                  border: '2px solid rgba(255, 215, 0, 0.3)',
+                  borderRadius: '20px',
+                  padding: '30px',
+                  marginTop: '30px'
+                }}>
+                  <div style={{
+                    color: '#FFD700',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '2px',
+                    marginBottom: '16px',
+                    textAlign: 'center',
+                    fontWeight: 'bold'
+                  }}>
+                    Race Winner
+                  </div>
+                  <div style={{
+                    color: 'white',
+                    fontSize: '28px',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    marginBottom: '12px'
+                  }}>
+                    {trackData.winner.name}
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: '15px',
+                    marginTop: '20px'
+                  }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        color: '#999',
+                        fontSize: '12px',
+                        textTransform: 'uppercase',
+                        marginBottom: '6px'
+                      }}>
+                        Team
+                      </div>
+                      <div style={{
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: 'bold'
+                      }}>
+                        {trackData.winner.team}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        color: '#999',
+                        fontSize: '12px',
+                        textTransform: 'uppercase',
+                        marginBottom: '6px'
+                      }}>
+                        Time
+                      </div>
+                      <div style={{
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: 'bold'
+                      }}>
+                        {trackData.winner.time}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        color: '#999',
+                        fontSize: '12px',
+                        textTransform: 'uppercase',
+                        marginBottom: '6px'
+                      }}>
+                        Grid Position
+                      </div>
+                      <div style={{
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: 'bold'
+                      }}>
+                        P{trackData.winner.grid}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Info Text */}
+          {!selectedTrack && !loadingTrack && (
+            <div style={{
+              textAlign: 'center',
+              color: '#666',
+              fontSize: '16px',
+              marginTop: '40px'
+            }}>
+              <p>Select a circuit from the dropdown above to view detailed information</p>
+              <p style={{ marginTop: '10px', fontSize: '14px' }}>
+                Data provided by Jolpica F1 API
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
